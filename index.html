@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ranking System</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { background-color: #ffffff; color: #333; font-family: "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
+        .container { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 20px; box-sizing: border-box; }
+        #mainTitle { color: #00a0e9; font-size: 1.4rem; font-weight: bold; margin-bottom: 40px; letter-spacing: 3px; }
+
+        /* スキャンボタン */
+        #uiArea { text-align: center; }
+        .btn-scan { padding: 18px 60px; font-size: 1.1rem; border: none; border-radius: 50px; background: #00a0e9; color: white; cursor: pointer; font-weight: bold; box-shadow: 0 10px 20px rgba(0,160,233,0.2); }
+        #reader { width: 320px; border-radius: 20px; overflow: hidden; margin-top: 20px; border: 5px solid #f0f8ff; }
+
+        /* 本格ロード演出 */
+        #loadingArea { display: none; width: 100%; max-width: 400px; margin-top: 120px; text-align: center; }
+        .status-text { font-size: 1.1rem; color: #00a0e9; margin-bottom: 15px; font-weight: bold; letter-spacing: 1px; }
+        .progress-frame { width: 100%; height: 8px; background: #eef9ff; border-radius: 10px; overflow: hidden; }
+        .progress-bar { width: 0%; height: 100%; background: #00a0e9; transition: width 0.3s ease; }
+
+        /* ランキングリスト */
+        #rankingList { width: 100%; max-width: 600px; display: none; flex-direction: column; padding-bottom: 300px; }
+        .rank-item { background: #fff; margin: 15px 0; padding: 30px; border-radius: 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 5px 20px rgba(0,0,0,0.03); border: 2px solid #f0f4f8; transform: translateY(20px); opacity: 0; }
+        
+        .reveal-rank { font-size: 1rem; color: #9bb7c6; font-weight: bold; visibility: hidden; }
+        .reveal-pts { font-size: 1.5rem; color: #00a0e9; font-weight: bold; visibility: hidden; }
+        .reveal-class { font-size: 2.2rem; font-weight: bold; color: #333; visibility: hidden; }
+
+        /* 発表アニメーション */
+        .show-row { animation: slideUp 0.8s forwards; opacity: 1; }
+        @keyframes slideUp { to { transform: translateY(0); opacity: 1; } }
+        .fade-in { visibility: visible !important; animation: fadeIn 0.5s forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* 1〜3位のカラー */
+        .top-1 { border-color: #ffcc00; background: #fffdf5; }
+        .top-1 .reveal-rank { color: #d4a017; }
+        .top-2 { border-color: #c0c0c0; }
+        .top-3 { border-color: #e6b422; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="mainTitle">発表システム</div>
+
+    <div id="uiArea">
+        <button class="btn-scan" onclick="startScan()">スキャンを開始</button>
+        <div id="reader"></div>
+    </div>
+
+    <!-- 本格ロード演出 -->
+    <div id="loadingArea">
+        <div class="status-text" id="statusMsg">Loading...</div>
+        <div class="progress-frame">
+            <div class="progress-bar" id="bar"></div>
+        </div>
+    </div>
+
+    <div id="rankingList"></div>
+</div>
+
+<script>
+    const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+    function startScan() {
+        const html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
+            (decodedText) => {
+                html5QrCode.stop();
+                runPresentation(decodedText);
+            }
+        ).catch(err => alert("カメラエラー"));
+    }
+
+    async function runPresentation(dataStr) {
+        document.getElementById('uiArea').style.display = 'none';
+        
+        // --- ロード演出 ---
+        const loading = document.getElementById('loadingArea');
+        const bar = document.getElementById('bar');
+        const msg = document.getElementById('statusMsg');
+        loading.style.display = 'block';
+
+        const phases = [
+            { p: 20, m: "サーバー通信中..." },
+            { p: 50, m: "データ照合中..." },
+            { p: 80, m: "ランキング生成中..." },
+            { p: 100, m: "完了" }
+        ];
+
+        for (const phase of phases) {
+            msg.innerText = phase.m;
+            bar.style.width = phase.p + "%";
+            await sleep(800);
+        }
+        await sleep(500);
+        loading.style.display = 'none';
+
+        // --- 同率順位の計算 ---
+        const ptsArray = dataStr.split(',');
+        let rawData = ptsArray.map((p, i) => ({ name: `${i+1}組`, pts: parseInt(p) || 0 }));
+        
+        // 点数で降順ソート
+        rawData.sort((a, b) => b.pts - a.pts);
+
+        let finalData = [];
+        let rank = 1;
+        for (let i = 0; i < rawData.length; i++) {
+            // 前の人と同じ点数なら同じ順位、違うなら「(これまでの人数) + 1」位にする
+            if (i > 0 && rawData[i].pts < rawData[i - 1].pts) {
+                rank = i + 1;
+            }
+            finalData.push({ ...rawData[i], rank: rank });
+        }
+
+        // リスト作成
+        const list = document.getElementById('rankingList');
+        list.style.display = 'flex';
+
+        // 発表（8位相当から1位へ）
+        for (let i = finalData.length - 1; i >= 0; i--) {
+            const item = finalData[i];
+            const row = document.createElement('div');
+            
+            let rankClass = '';
+            if (item.rank === 1) rankClass = 'top-1';
+            else if (item.rank === 2) rankClass = 'top-2';
+            else if (item.rank === 3) rankClass = 'top-3';
+
+            row.className = `rank-item ${rankClass}`;
+            row.innerHTML = `
+                <div class="reveal-rank" id="r-${i}">第${item.rank}位</div>
+                <div class="reveal-pts" id="p-${i}">${item.pts} pt</div>
+                <div class="reveal-class" id="c-${i}">${item.name}</div>
+            `;
+            list.appendChild(row);
+
+            // 表示
+            await sleep(500);
+            row.classList.add('show-row');
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // 段階的に中身を出す
+            await sleep(1200); 
+            document.getElementById(`r-${i}`).classList.add('fade-in');
+            await sleep(1200); 
+            document.getElementById(`p-${i}`).classList.add('fade-in');
+            await sleep(1800); // クラス名発表が最大の溜め
+            document.getElementById(`c-${i}`).classList.add('fade-in');
+            await sleep(800);
+        }
+    }
+</script>
+
+</body>
+</html>
