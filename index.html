@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<!-- iPad・iPhoneでホーム画面に追加した時にブラウザ枠を完全に消す設定 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="砂時計タイマー">
-<title>リアル砂時計タイマー</title>
+<meta name="apple-mobile-web-app-title" content="3D物理砂時計">
+<title>3D物理演算砂時計タイマー</title>
+<script src="https://cloudflare.com"></script>
 <style>
   * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
   body {
@@ -29,22 +29,20 @@
 
   .main-layout {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    width: 100%; height: 100%; padding: 3vmin; gap: 2vmin;
+    width: 100%; height: 100%; padding: 2vmin;
   }
-  .left-pane, .right-pane {
+  .left-pane {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10;
+  }
+  .right-pane {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 100%; height: 55%; position: relative;
   }
 
   @media (orientation: landscape) and (min-width: 560px) {
-    .main-layout {
-      flex-direction: row; justify-content: space-evenly; padding: 4vmin 6vmin;
-    }
-    .left-pane {
-      flex: 1; height: 100%; justify-content: center; align-items: center;
-    }
-    .right-pane {
-      flex: 1; height: 100%; justify-content: center; align-items: center;
-    }
+    .main-layout { flex-direction: row; justify-content: space-evenly; padding: 3vmin 5vmin; }
+    .left-pane { flex: 0.9; height: 100%; }
+    .right-pane { flex: 1.1; height: 100%; }
   }
 
   .ui-collapsible {
@@ -56,13 +54,13 @@
   }
 
   .settings {
-    margin-bottom: 14px; font-size: clamp(13px, 2vmin, 16px);
-    color: #94a3b8; background: #0a0c10; padding: 10px 18px;
+    margin-bottom: 12px; font-size: clamp(13px, 2vmin, 16px);
+    color: #94a3b8; background: #0a0c10; padding: 8px 16px;
     border-radius: 14px; border: 1px solid #1e293b;
-    display: flex; align-items: center; justify-content: center; gap: 12px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
   }
   .settings input[type="number"] {
-    width: 52px; font-size: clamp(14px, 2.2vmin, 18px); text-align: center;
+    width: 50px; font-size: clamp(14px, 2.2vmin, 18px); text-align: center;
     padding: 4px; background: #000; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px;
   }
 
@@ -73,23 +71,21 @@
 
   .mode-box {
     display: flex; flex-direction: column; align-items: center;
-    margin-top: clamp(8px, 1.8vh, 18px); margin-bottom: clamp(12px, 2.2vh, 22px);
+    margin-top: clamp(6px, 1.5vh, 14px); margin-bottom: clamp(10px, 2vh, 18px);
   }
   #status {
-    font-size: clamp(15px, 2.5vmin, 24px); font-weight: bold;
-    padding: 6px 22px; border-radius: 24px; letter-spacing: 0.08em;
+    font-size: clamp(15px, 2.4vmin, 22px); font-weight: bold;
+    padding: 6px 20px; border-radius: 24px; letter-spacing: 0.08em;
     background: rgba(214, 188, 148, 0.12); color: #d6bc94; border: 1px solid rgba(214, 188, 148, 0.3);
   }
   .break #status {
     background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3);
   }
-  #cycle {
-    font-size: clamp(12px, 1.8vmin, 16px); color: #64748b; margin-top: 6px;
-  }
+  #cycle { font-size: clamp(12px, 1.8vmin, 15px); color: #64748b; margin-top: 6px; }
 
-  .controls { display: flex; gap: 10px; justify-content: center; }
+  .controls { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
   .ctrl-btn {
-    font-size: clamp(13px, 1.9vmin, 16px); padding: clamp(9px, 1.5vmin, 13px) clamp(16px, 2.5vmin, 24px);
+    font-size: clamp(13px, 1.8vmin, 15px); padding: clamp(8px, 1.4vmin, 12px) clamp(14px, 2.2vmin, 20px);
     cursor: pointer; border: 1px solid #1e293b; border-radius: 12px;
     font-weight: bold; color: #cbd5e1; background: #0f172a;
   }
@@ -97,22 +93,21 @@
   .start { border-color: #1d4ed8; color: #60a5fa; }
   .stop { border-color: #b91c1c; color: #f87171; }
 
-  .stage {
-    position: relative;
-    width: clamp(220px, 52vmin, 480px);
-    height: clamp(250px, 62vmin, 560px);
+  /* 3Dキャンバスのタッチ操作領域 */
+  #canvasContainer {
+    width: 100%; height: 100%; touch-action: none; cursor: grab;
     display: flex; justify-content: center; align-items: center;
   }
-  .hg-pivot {
-    position: relative; width: 78%; height: 92%;
-    display: flex; justify-content: center; align-items: center;
-    transition: transform 1.6s cubic-bezier(0.45, 0.05, 0.25, 1);
+  #canvasContainer:active { cursor: grabbing; }
+  .hint-text {
+    position: absolute; bottom: 6px; font-size: 11px; color: #475569; pointer-events: none;
   }
-  canvas { width: 100%; height: 100%; display: block; }
 </style>
-</head><body class="work">
+</head>
+<body class="work">
 
 <div class="top-tools">
+  <button class="tool-btn" onclick="resetCameraAngle()">🧭 正面に戻す</button>
   <button class="tool-btn" id="toggleUiBtn" onclick="toggleCleanMode()">👁️ ボタンを隠す</button>
   <button class="tool-btn" id="fsBtn" onclick="toggleFullscreen()">⛶ 全画面</button>
 </div>
@@ -143,20 +138,12 @@
   </div>
 
   <div class="right-pane">
-    <div class="stage">
-      <div class="hg-pivot" id="hgPivot">
-        <canvas id="sandCanvas" width="240" height="280"></canvas>
-      </div>
-    </div>
+    <div id="canvasContainer"></div>
+    <div class="hint-text">👆 指やマウスでなぞって3D回転</div>
   </div>
 </div>
 
 <script>
-  const canvas = document.getElementById('sandCanvas');
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const CX = W / 2, CY = H / 2;
-
   const getWorkMin = () => Math.max(1, parseInt(document.getElementById('wIn').value) || 45);
   const getBreakMin = () => Math.max(1, parseInt(document.getElementById('bIn').value) || 5);
 
@@ -169,96 +156,279 @@
   let running = false;
   let isFlipping = false;
 
+  // ==========================================
+  // 音声システム（澄んだ4音メロディ）
+  // ==========================================
   let audioCtx = null;
-
   function initAudio() {
-    if (!audioCtx) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      audioCtx = new AudioContext();
-    }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
   }
 
   function chime() {
     initAudio();
     const now = audioCtx.currentTime;
-    const notes = isWork
-      ? [523.25, 659.25, 783.99, 1046.50]
-      : [880.00, 698.46, 587.33, 523.25];
-
+    const notes = isWork ? [523.25, 659.25, 783.99, 1046.50] : [880.00, 698.46, 587.33, 523.25];
     notes.forEach((freq, i) => {
       const startTime = now + i * 0.22;
-      const duration = 0.95;
-
-      const osc1 = audioCtx.createOscillator();
-      const osc2 = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      osc1.type = 'triangle';
-      osc1.frequency.setValueAtTime(freq, startTime);
-
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(freq * 2, startTime);
-
-      const subGain = audioCtx.createGain();
+      const osc1 = audioCtx.createOscillator(), osc2 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain(), subGain = audioCtx.createGain();
+      osc1.type = 'triangle'; osc1.frequency.setValueAtTime(freq, startTime);
+      osc2.type = 'sine'; osc2.frequency.setValueAtTime(freq * 2, startTime);
       subGain.gain.setValueAtTime(0.25, startTime);
-
       gain.gain.setValueAtTime(0.001, startTime);
       gain.gain.linearRampToValueAtTime(0.45, startTime + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-
-      osc1.connect(gain);
-      osc2.connect(subGain);
-      subGain.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      osc1.start(startTime);
-      osc1.stop(startTime + duration);
-      osc2.start(startTime);
-      osc2.stop(startTime + duration);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.95);
+      osc1.connect(gain); osc2.connect(subGain); subGain.connect(gain); gain.connect(audioCtx.destination);
+      osc1.start(startTime); osc1.stop(startTime + 0.95);
+      osc2.start(startTime); osc2.stop(startTime + 0.95);
     });
   }
-  let textureGrains = [];
-  let fallingGrains = [];
 
-  function initGrains() {
-    textureGrains = [];
-    for (let i = 0; i < 3400; i++) {
-      textureGrains.push({ nx: (Math.random() - 0.5) * 2, ny: Math.random(), shade: Math.random() });
+  // ==========================================
+  // 3D空間（Three.js）＆ 物理演算セットアップ
+  // ==========================================
+  const container = document.getElementById('canvasContainer');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
+  camera.position.set(0, 0.4, 9.2);
+  camera.lookAt(0, 0, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer.domElement);
+
+  function resize3D() {
+    const w = container.clientWidth || 300;
+    const h = container.clientHeight || 300;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+  window.addEventListener('resize', resize3D);
+  setTimeout(resize3D, 50);
+
+  // ライティング（立体感を出す3点照明）
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xfff5e6, 0.9);
+  dirLight.position.set(4, 6, 6);
+  scene.add(dirLight);
+  const backLight = new THREE.DirectionalLight(0x64748b, 0.5);
+  backLight.position.set(-5, -3, -4);
+  scene.add(backLight);
+
+  // 砂時計全体をまとめる3Dグループ（指で回す対象）
+  const hourglassGroup = new THREE.Group();
+  scene.add(hourglassGroup);
+
+  // ガラスのくびれ形状の関数（高さ y: -2.2 〜 +2.2 に対する半径）
+  function getGlassRadius3D(y) {
+    const ay = Math.abs(y);
+    if (ay > 2.2) return 0;
+    return 0.12 + 1.38 * Math.pow(ay / 2.2, 1.35);
+  }
+
+  // ガラス容器メッシュ生成
+  const lathePoints = [];
+  for (let i = 0; i <= 40; i++) {
+    const y = -2.2 + (i / 40) * 4.4;
+    lathePoints.push(new THREE.Vector2(getGlassRadius3D(y), y));
+  }
+  const glassGeo = new THREE.LatheGeometry(lathePoints, 48);
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0xdbeafe, transparent: true, opacity: 0.16,
+    roughness: 0.15, metalness: 0.05, side: THREE.DoubleSide, depthWrite: false
+  });
+  const glassMesh = new THREE.Mesh(glassGeo, glassMat);
+  hourglassGroup.add(glassMesh);
+
+  // 上下の木製・金属フレーム台座と3本の支柱
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.6 });
+  const capGeo = new THREE.CylinderGeometry(1.62, 1.62, 0.16, 48);
+  const topCap = new THREE.Mesh(capGeo, frameMat); topCap.position.y = 2.28;
+  const botCap = new THREE.Mesh(capGeo, frameMat); botCap.position.y = -2.28;
+  hourglassGroup.add(topCap, botCap);
+
+  const pillarGeo = new THREE.CylinderGeometry(0.045, 0.045, 4.5, 16);
+  for (let i = 0; i < 3; i++) {
+    const angle = (i * Math.PI * 2) / 3 + Math.PI / 6;
+    const pillar = new THREE.Mesh(pillarGeo, frameMat);
+    pillar.position.set(Math.cos(angle) * 1.48, 0, Math.sin(angle) * 1.48);
+    hourglassGroup.add(pillar);
+  }
+  // ==========================================
+  // 3D砂粒パーティクルの物理演算システム（1800粒）
+  // ==========================================
+  const PARTICLE_COUNT = 1800;
+  const pGeo = new THREE.BufferGeometry();
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+
+  // 各砂粒の物理データ（固有の相対位置・落下速度・安息角オフセット）
+  const particles = [];
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const u = i / PARTICLE_COUNT; // 0(最初に落ちる) 〜 1(最後に落ちる)
+    const rNorm = Math.sqrt(Math.random()); // 円の断面に均一に分布
+    const theta = Math.random() * Math.PI * 2;
+    particles.push({
+      u: u,
+      rx: Math.cos(theta) * rNorm,
+      rz: Math.sin(theta) * rNorm,
+      rDist: rNorm,
+      fallOffset: Math.random(),
+      vx: (Math.random() - 0.5) * 0.08,
+      vz: (Math.random() - 0.5) * 0.08
+    });
+
+    // 自然な砂の色ムラ（サンドベージュ）
+    const shade = 0.82 + Math.random() * 0.35;
+    colors[i * 3] = (194 / 255) * shade;
+    colors[i * 3 + 1] = (166 / 255) * shade;
+    colors[i * 3 + 2] = (125 / 255) * shade;
+  }
+
+  pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  pGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const pMat = new THREE.PointsMaterial({
+    size: 0.075, vertexColors: true, transparent: true, opacity: 0.95
+  });
+  const sandPoints = new THREE.Points(pGeo, pMat);
+  hourglassGroup.add(sandPoints);
+
+  // ==========================================
+  // 指やマウスでの3D回転ドラッグ＆慣性物理
+  // ==========================================
+  let isDragging = false;
+  let prevX = 0, prevY = 0;
+  let rotX = 0.18, rotY = 0.3; // 初期の少し見下ろす立体アングル
+  let velX = 0, velY = 0;
+
+  container.addEventListener('pointerdown', (e) => {
+    if (isFlipping) return;
+    isDragging = true;
+    prevX = e.clientX;
+    prevY = e.clientY;
+    velX = 0; velY = 0;
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (!isDragging || isFlipping) return;
+    const dx = e.clientX - prevX;
+    const dy = e.clientY - prevY;
+    velY = dx * 0.012;
+    velX = dy * 0.012;
+    rotY += velY;
+    rotX += velX;
+    prevX = e.clientX;
+    prevY = e.clientY;
+  });
+
+  window.addEventListener('pointerup', () => { isDragging = false; });
+
+  function resetCameraAngle() {
+    velX = 0; velY = 0;
+    rotX = 0.18; rotY = 0.3;
+  }
+
+  // ==========================================
+  // 砂の物理シミュレーション更新（重力の向きを計算）
+  // ==========================================
+  const worldDown = new THREE.Vector3(0, -1, 0);
+  const localGravity = new THREE.Vector3();
+  const invQuat = new THREE.Quaternion();
+
+  function updateSandPhysics(now) {
+    // 砂時計の現在の傾きから「砂時計内部にとっての下方向（重力ベクトル）」を計算
+    invQuat.copy(hourglassGroup.quaternion).invert();
+    localGravity.copy(worldDown).applyQuaternion(invQuat);
+
+    // 重力が下向き(+1)か横向き(0)か逆さま(-1)かを判定
+    const downFactor = -localGravity.y; // +1:正位置, 0:真横, -1:逆さま
+    const tiltX = localGravity.x;
+    const tiltZ = localGravity.z;
+
+    const progress = Math.max(0, Math.min(1, 1 - (remMs / totalMs)));
+    const totalMinutes = totalMs / 60000;
+    const flowFactor = Math.max(0.25, Math.min(1.0, 6 / Math.pow(totalMinutes, 0.65)));
+
+    const posAttr = pGeo.attributes.position.array;
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const p = particles[i];
+      let px = 0, py = 0, pz = 0;
+
+      if (p.u > progress + 0.025) {
+        // 【上の部屋に残っている砂】
+        const localU = (p.u - progress) / Math.max(0.01, 1 - progress);
+        const baseLevel = 0.08 + (1 - localU) * (2.12 - (0.08 + Math.pow(progress, 0.85) * 2.04));
+        const maxR = Math.max(0.06, getGlassRadius3D(baseLevel) - 0.05);
+
+        // 砂時計を傾けると、上の砂の表面も重力に従って斜めに傾く
+        const tiltOffset = (p.rx * tiltX + p.rz * tiltZ) * maxR * 0.75;
+        const funnelDip = (1 - p.rDist) * 0.18 * Math.sin(progress * Math.PI) * Math.max(0, downFactor);
+
+        py = Math.max(0.06, Math.min(2.15, baseLevel + tiltOffset - funnelDip));
+        const currentMaxR = Math.max(0.05, getGlassRadius3D(py) - 0.05);
+        px = p.rx * currentMaxR;
+        pz = p.rz * currentMaxR;
+
+      } else if (p.u < progress - 0.025) {
+        // 【下の部屋に積もった砂山】
+        const localU = p.u / Math.max(0.01, progress);
+        const peakHeight = Math.pow(progress, 0.58) * 2.12;
+        const bottomY = -2.16;
+
+        // 円錐形の砂山表面の高さ（安息角）
+        const moundSurface = bottomY + Math.max(0, peakHeight - (p.rDist * 1.38) * 0.72);
+        const rawY = bottomY + localU * (moundSurface - bottomY);
+
+        // 砂時計を傾けると下の砂山も重力方向へ斜めに崩れる
+        const maxR = Math.max(0.08, getGlassRadius3D(rawY) - 0.05);
+        const tiltOffset = (p.rx * tiltX + p.rz * tiltZ) * maxR * 0.85;
+
+        py = Math.max(-2.16, Math.min(-0.08, rawY + tiltOffset));
+        const currentMaxR = Math.max(0.06, getGlassRadius3D(py) - 0.05);
+        px = p.rx * currentMaxR;
+        pz = p.rz * currentMaxR;
+
+      } else if (running && !isFlipping && remMs > 0 && downFactor > 0.15) {
+        // 【くびれから落下中の砂粒】（真横や逆さまの時は落ちない）
+        const peakY = -2.16 + Math.pow(progress, 0.58) * 2.12;
+        const fallDist = Math.max(0.1, -peakY);
+        const t = ((now * 0.0018 * (0.8 + flowFactor * 0.6)) + p.fallOffset) % 1;
+        py = -t * fallDist;
+
+        // 重力ベクトル（傾き）の方向へ引っ張られながら落ちる
+        const spread = t * (0.04 + flowFactor * 0.08);
+        px = p.vx * spread + tiltX * Math.abs(py) * 0.6;
+        pz = p.vz * spread + tiltZ * Math.abs(py) * 0.6;
+      } else {
+        // 停止中や逆さま時の待機粒はくびれ付近に隠す
+        py = p.u > progress ? 0.06 : -2.15;
+        px = p.rx * 0.04;
+        pz = p.rz * 0.04;
+      }
+
+      posAttr[i * 3] = px;
+      posAttr[i * 3 + 1] = py;
+      posAttr[i * 3 + 2] = pz;
     }
-    fallingGrains = [];
-    for (let i = 0; i < 120; i++) {
-      fallingGrains.push({ y: Math.random() * 116, vx: (Math.random() - 0.5) * 2.0, speed: 2.2 + Math.random() * 1.5, shade: Math.random() });
-    }
+
+    pGeo.attributes.position.needsUpdate = true;
   }
 
-  function traceGlassPath() {
-    ctx.beginPath();
-    ctx.moveTo(CX - 82, CY - 116);
-    ctx.bezierCurveTo(CX - 82, CY - 40, CX - 5.5, CY - 15, CX - 3.8, CY);
-    ctx.bezierCurveTo(CX - 5.5, CY + 15, CX - 82, CY + 40, CX - 82, CY + 116);
-    ctx.lineTo(CX + 82, CY + 116);
-    ctx.bezierCurveTo(CX + 82, CY + 40, CX + 5.5, CY + 15, CX + 3.8, CY);
-    ctx.bezierCurveTo(CX + 5.5, CY - 15, CX + 82, CY - 40, CX + 82, CY - 116);
-    ctx.closePath();
-  }
-
-  function getSandColors() {
-    return { base: '#c2a67d', dark: '#9e825b', light: '#d9c19c' };
-  }
-
-  function getMoundSurfaceY(absX, progress) {
-    const bottomY = CY + 116;
-    const peakHeight = Math.pow(progress, 0.58) * 112;
-    const peakY = bottomY - peakHeight;
-    const rawY = peakY + (absX * 82) * 0.62;
-    return Math.min(bottomY, rawY);
-  }
+  // ==========================================
+  // タイマー進行＆ゆっくり反転アニメーション
+  // ==========================================
+  let flipStartTime = 0;
+  let flipStartRotX = 0;
 
   function triggerFlip() {
     isFlipping = true;
+    isDragging = false;
+    velX = 0; velY = 0;
     remMs = 0;
     updateUI(0);
 
@@ -266,35 +436,48 @@
     if (isWork) count++;
     chime();
 
-    const pivot = document.getElementById('hgPivot');
-    pivot.style.transition = 'transform 1.6s cubic-bezier(0.45, 0.05, 0.25, 1)';
-    pivot.style.transform = 'rotate(180deg)';
-
-    setTimeout(() => {
-      const nextMin = isWork ? getWorkMin() : getBreakMin();
-      totalMs = nextMin * 60 * 1000;
-      remMs = totalMs;
-
-      pivot.style.transition = 'none';
-      pivot.style.transform = 'rotate(0deg)';
-
-      lastTick = performance.now();
-      lastSecDisplayed = -1;
-      isFlipping = false;
-    }, 1650);
+    flipStartTime = performance.now();
+    flipStartRotX = rotX;
   }
 
   function loop(now) {
-    if (running && !isFlipping) {
+    if (isFlipping) {
+      // 1.6秒かけて3D空間で砂時計をゆっくり180度（Math.PI）ひっくり返す
+      const elapsed = now - flipStartTime;
+      const t = Math.min(1, elapsed / 1600);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      rotX = flipStartRotX + Math.PI * ease;
+
+      if (t >= 1) {
+        // 180度回転が終わったら角度を元の正位置に戻し、砂を上から落とし始める
+        rotX = flipStartRotX;
+        const nextMin = isWork ? getWorkMin() : getBreakMin();
+        totalMs = nextMin * 60 * 1000;
+        remMs = totalMs;
+        lastTick = now;
+        lastSecDisplayed = -1;
+        isFlipping = false;
+      }
+    } else if (running) {
       if (lastTick !== null) {
         const dt = now - lastTick;
         remMs -= dt;
         if (remMs <= 0) triggerFlip();
       }
       lastTick = now;
-    } else if (!running) {
+    } else {
       lastTick = null;
     }
+
+    // 指を離した後の滑らかな減速（慣性）
+    if (!isDragging && !isFlipping) {
+      rotY += velY;
+      rotX += velX;
+      velY *= 0.92;
+      velX *= 0.92;
+    }
+
+    hourglassGroup.rotation.set(rotX, rotY, 0);
 
     const currentSec = Math.ceil(remMs / 1000);
     if (currentSec !== lastSecDisplayed && !isFlipping) {
@@ -302,108 +485,9 @@
       updateUI(currentSec);
     }
 
-    render();
+    updateSandPhysics(now);
+    renderer.render(scene, camera);
     requestAnimationFrame(loop);
-  }
-
-  function render() {
-    ctx.clearRect(0, 0, W, H);
-    const progress = Math.max(0, Math.min(1, 1 - (remMs / totalMs)));
-    const colors = getSandColors();
-
-    const totalMinutes = totalMs / 60000;
-    const flowFactor = Math.max(0.25, Math.min(1.0, 6 / Math.pow(totalMinutes, 0.65)));
-    const streamWidth = 0.8 + flowFactor * 2.6;
-    const activeGrainCount = Math.floor(20 + flowFactor * 100);
-
-    ctx.save();
-    traceGlassPath();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
-    ctx.fill();
-    ctx.clip();
-
-    if (progress < 0.9999) {
-      const topLevel = CY - 112 + Math.pow(progress, 0.85) * 112;
-      const dip = Math.sin(progress * Math.PI) * 12;
-
-      ctx.beginPath();
-      ctx.moveTo(CX - 86, topLevel);
-      ctx.quadraticCurveTo(CX, topLevel + dip, CX + 86, topLevel);
-      ctx.lineTo(CX + 86, CY);
-      ctx.lineTo(CX - 86, CY);
-      ctx.closePath();
-      ctx.fillStyle = colors.base;
-      ctx.fill();
-
-      for (let i = 0; i < 1700; i++) {
-        const g = textureGrains[i];
-        const gy = topLevel + g.ny * (CY - topLevel);
-        const gx = CX + g.nx * 82;
-        if (gy > topLevel + (1 - Math.abs(g.nx)) * (dip * 0.55)) {
-          ctx.fillStyle = g.shade > 0.5 ? colors.light : colors.dark;
-          ctx.fillRect(gx, gy, 1.2, 1.2);
-        }
-      }
-    }
-
-    if (progress > 0.0001) {
-      const bottomY = CY + 116;
-      ctx.beginPath();
-      ctx.moveTo(CX - 82, bottomY);
-
-      const steps = 40;
-      for (let s = 0; s <= steps; s++) {
-        const nx = -1 + (s / steps) * 2;
-        const px = CX + nx * 82;
-        const py = getMoundSurfaceY(Math.abs(nx), progress);
-        ctx.lineTo(px, py);
-      }
-
-      ctx.lineTo(CX + 82, bottomY);
-      ctx.closePath();
-      ctx.fillStyle = colors.base;
-      ctx.fill();
-
-      for (let i = 1700; i < 3400; i++) {
-        const g = textureGrains[i];
-        const surfaceY = getMoundSurfaceY(Math.abs(g.nx), progress);
-        if (surfaceY < bottomY - 0.5) {
-          const gy = surfaceY + g.ny * (bottomY - surfaceY);
-          const gx = CX + g.nx * 82;
-          ctx.fillStyle = g.shade > 0.5 ? colors.light : colors.dark;
-          ctx.fillRect(gx, gy, 1.2, 1.2);
-        }
-      }
-    }
-
-    if (running && !isFlipping && remMs > 0) {
-      const peakY = getMoundSurfaceY(0, progress);
-      const fallHeight = Math.max(1, peakY - CY);
-
-      ctx.fillStyle = colors.base;
-      ctx.fillRect(CX - streamWidth / 2, CY, streamWidth, fallHeight);
-
-      for (let i = 0; i < activeGrainCount; i++) {
-        const fg = fallingGrains[i];
-        fg.y = (fg.y + fg.speed) % fallHeight;
-        const spread = (fg.y / 116) * (1.5 + flowFactor * 2.5);
-        const fx = CX + fg.vx * spread;
-        const fy = CY + fg.y;
-        ctx.fillStyle = fg.shade > 0.5 ? colors.light : colors.dark;
-        ctx.fillRect(fx, fy, 1.2, 1.2);
-      }
-    }
-
-    ctx.restore();
-
-    traceGlassPath();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#334155';
-    ctx.stroke();
-
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(CX - 90, CY - 124, 180, 8);
-    ctx.fillRect(CX - 90, CY + 116, 180, 8);
   }
 
   function updateUI(sec) {
@@ -419,29 +503,12 @@
     document.getElementById('cycle').textContent = `現在：${count}セット目`;
   }
 
-  function start() {
-    initAudio();
-    if (running) return;
-    running = true;
-    lastTick = performance.now();
-  }
-
-  function stop() {
-    running = false;
-    lastTick = null;
-  }
-
+  function start() { initAudio(); if (!running) { running = true; lastTick = performance.now(); } }
+  function stop() { running = false; lastTick = null; }
   function reset() {
-    stop();
-    isFlipping = false;
-    isWork = true;
-    const pivot = document.getElementById('hgPivot');
-    pivot.style.transition = 'none';
-    pivot.style.transform = 'rotate(0deg)';
-    totalMs = getWorkMin() * 60 * 1000;
-    remMs = totalMs;
-    count = 1;
-    lastSecDisplayed = -1;
+    stop(); isFlipping = false; isWork = true;
+    totalMs = getWorkMin() * 60 * 1000; remMs = totalMs;
+    count = 1; lastSecDisplayed = -1;
     updateUI(Math.ceil(remMs / 1000));
   }
 
@@ -449,6 +516,7 @@
     document.body.classList.toggle('clean-mode');
     const isClean = document.body.classList.contains('clean-mode');
     document.getElementById('toggleUiBtn').textContent = isClean ? '⚙️ 設定を表示' : '👁️ ボタンを隠す';
+    setTimeout(resize3D, 320);
   }
 
   function toggleFullscreen() {
@@ -464,10 +532,8 @@
   document.getElementById('wIn').addEventListener('change', reset);
   document.getElementById('bIn').addEventListener('change', reset);
 
-  initGrains();
   updateUI(Math.ceil(remMs / 1000));
   requestAnimationFrame(loop);
 </script>
 </body>
 </html>
-
